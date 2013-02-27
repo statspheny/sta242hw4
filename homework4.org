@@ -1,0 +1,30 @@
+#+TITLE: Homework 4
+#+AUTHOR: Stephanie Chan
+
+* Get the data
+There were a lot of files to get, and I didn't want to have to
+download all of them single-handedly, so I looked to see if it was
+possible to find a shell script that would it automatically for me.  I
+found the function ~wget~.  Then I found a tutorial at
+http://www.freeos.com/guides/lsst/index.html for basic information for shell
+scripting.  I ended up writing a for loop and ~wget~ the data from
+each year.
+
+#+INCLUDE: "getdata.sh" src bash
+
+This project may have me 
+
+** Unzipping the data files
+
+#+BEGIN_SRC bash
+
+bunzip2 *.bz2
+
+#+END_SRC
+
+
+* Using R
+
+
+* Using Shell
+This looks hard, I will skip this and try using R as we learned in class
