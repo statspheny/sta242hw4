@@ -1,11 +1,14 @@
-#!/bin/sh
-
-# Copied this script from
-# http://alvinalexander.com/linux-unix/wget-command-shell-script-example-download-url
+#!/bin/bash
 
 # wget log file
 LOGFILE=wget.log
 
-URL=http://eeyore.ucdavis.edu/stat242/data/1987.csv.bz2
+URL1=http://eeyore.ucdavis.edu/stat242/data/
+URL2=.csv.bz2
 
-wget $URL -o $LOGFILE
+for ((i = 1987; i<=2007; i++))
+do
+	FULLURL=$URL1$i$URL2
+	echo $FULLURL
+	wget $FULLURL -o $LOGFILE
+done
