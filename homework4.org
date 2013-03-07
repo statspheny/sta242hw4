@@ -1,30 +1,181 @@
 #+TITLE: Homework 4
 #+AUTHOR: Stephanie Chan
 
-* Get the data
-There were a lot of files to get, and I didn't want to have to
-download all of them single-handedly, so I looked to see if it was
-possible to find a shell script that would it automatically for me.  I
-found the function ~wget~.  Then I found a tutorial at
-http://www.freeos.com/guides/lsst/index.html for basic information for shell
-scripting.  I ended up writing a for loop and ~wget~ the data from
-each year.
+#+PROPERTY: session *R*
+* Using Shell
 
-#+INCLUDE: "getdata.sh" src bash
+Using grep, I have to find a way to get only the column that represents the 
 
-This project may have me 
+To find the number of flights per airport, I used a series of shell
+commands piped through.  From this part of the project I learned some
+commands that I hadn't used before.  I used the command in R,
+originally intending to loop over each of the data files or the
+airport, until I thought of using ~*~ to get all the data files at
+once.  The first part, I used a ~cut~ function to only get the origin
+airport.  The next part of the pipe is ~egrep '(LAX|OAK|SFO|SMF)'\~.
+The third part is a ~sort~ command over the set of origin airports,
+and the final piece was piped to ~uniq -c~ to count the number for
+each airport.
 
-** Unzipping the data files
-
-#+BEGIN_SRC bash
-
-bunzip2 *.bz2
-
+The total time for running this shell code was
+#+BEGIN_SRC R
+user  system elapsed 
+144.261  19.905 324.771 
 #+END_SRC
+Originally, I was concerned that the sort time would increase with
+polynomial time, so I considered counting the data files individually,
+and then adding the counts up in the end.  I tried timing the counting
+with one/two/three files at a time, and found the total times to be
+12.754, 29.388, 48.749.  This increase in time was low enough to
+justify sorting all 20 files in one command, which ended up less than
+a multiple of 1.5 compared to the time for sorting each file.
+
+The total counts for each of the four airports is
+#+BEGIN_SRC Rno
+LAX  4057452
+OAK  1151897
+SFO  2711958
+SMF   806133
+#+END_SRC
+
+
 
 
 * Using R
 
+In order to determine what the best size for reading in R would be, I
+checked a few different values of B where B is the number of lines
+read in each instance.  These cases were determined using only the
+~2000.csv~ data file.
+|------------+---------|
+| value of B |    time |
+|------------+---------|
+|       1000 |  539.26 |
+|       2000 |  436.51 |
+|       5000 | 444.475 |
+|      10000 | 477.938 |
+|      20000 | 465.856 |
+|      50000 | 438.534 |
+|------------+---------|
+It looks like the size of B does not have a significant impact on the
+time for these values of B that we tried.
 
-* Using Shell
-This looks hard, I will skip this and try using R as we learned in class
+I end up using R=50000 for each run.  I didn't time this check, but it
+was significantly slower than using the shell or SQL, on the order of hours.
+#+BEGIN_SRC R
+    LAX     OAK     SFO     SMF 
+4057452 1151897 2711958  806133 
+#+END_SRC
+
+* Using SQLite
+
+To get the results, I created a data base.  Creating the database and
+importing all the values took a long time.  It took an especially long
+time to import all the values needed.  Finding the counts using sqlite
+was pretty fast.  It only took 52.8 seconds.
+
+#+BEGIN_SRC R
+   Origin count(*)
+1    LAX  4057452
+2    OAK  1151897
+3    SFO  2711958
+4    SMF   806133
+#+END_SRC
+
+* Computing the mean and standard deviation
+
+** Computing the mean and standard deviation with SQLite
+I first tried to compute the mean and the standard deviation using SQLite.
+There was an average function in SQLite and I used that to get the results
+#+BEGIN_SRC R
+  Origin avg(depdelay)
+1    LAX      7.829167
+2    OAK      7.183358
+3    SFO      9.383507
+4    SMF      7.041083
+#+END_SRC
+This query took 1048.6 seconds.  A bit longer than I had hoped for.
+Unfortunately there was no standard deviation function available for
+SQLite.  I attempted to find the standard deviation by computing the
+sum of squares and subtracting that by n*the average, but SQL returned
+negative numbers for the sum of squared.  I sonder if that may be a
+function of the large numbers of square sums rolling over.  This query
+took 970.2 seconds to run.
+#+BEGIN_SRC R
+  Origin sum(depdelay*depdelay)
+1    LAX            -1599222548
+2    OAK              545265681
+3    SFO            -1925995744
+4    SMF              522824371
+#+END_SRC
+
+** Computing the mean and standard deviation with R and the shell
+Then I used the shell and R to find the mean and the standard
+deviation.  The total timing for this was 441.9s.  In this case, the
+necessary values to get were again the sum of all the departure
+delays, the sum of the squared departure delays, and the total number
+of counts.  The means that were done through R matched the means from
+SQLite.
+#+BEGIN_SRC R
+     LAX      OAK      SFO      SMF 
+7.829167 7.183358 9.383507 7.041083 
+#+END_SRC
+The standard deviations are
+#+BEGIN_SRC R
+     LAX      OAK      SFO      SMF 
+24.55805 20.53687 28.02638 24.47412 
+#+END_SRC
+The sum of squares that was returned by R is
+#+BEGIN_SRC R
+       LAX        OAK        SFO        SMF 
+2695744748  545265681 2368971552  522824371 
+#+END_SRC
+The sum of squares returned the same values as SQL for OAK and SMF
+which are smaller values but the values are much bigger for LAX and
+SFO.  It appears that the values roll over at $2^{32}$.
+
+
+* Timing
+The timings for each of the processes were done while there were other
+R processes and general computer tabs and windows open, so they may
+fluctuate based on how many other processes were used at that
+particular time.
+
+** Counting the number of rows
+|------------------+-------|
+| Shell            | 324.8 |
+| R                |  slow |
+| SQL(import data) |  slow |
+| SQL query        |  52.8 |
+|------------------+-------|
+
+SQL query was fastest, but it has a high initial cost to import all
+the files to the database.  It would be most useful for instances
+where we have other uses for the database.
+
+** Getting the Average and Standard deviation.
+
+The SQLite has an aggregator to get the Average, but unfortunately it
+did not have one for the standard deviation.  Also, the size for the
+delays was too small to hold the sum of squares.  This could possibly
+be fixed through changing the table schema.
+
+Using R turned out to be more convenient especially because a lot of
+time was saved by using the shell to only pipe out the necessary
+lines.
+|-------------------+--------|
+| SQL (get average) | 1048.6 |
+| SQL (get squares) |  970.2 |
+| R and shell       |  441.9 |
+|-------------------+--------|
+
+
+* Appendix
+** counting with the shell
+#+INCLUDE: "countAirportDepartures.sh" src sh
+** counting using R (and some shell)
+#+INCLUDE: "countInShell.R" src R
+** using SQL
+#+INCLUDE: "sqlite/usesql.R" src R
+** getting the average and standard deviation
+#+INCLUDE: "shellgetAverage.R" src R
